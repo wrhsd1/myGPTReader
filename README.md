@@ -17,10 +17,31 @@ For now it is in development, but you can try it out by join this [channel](http
   - [x] Consider to use a headless browser to scrape the web page content like twitter thread
     - ~~https://www.browserless.io/~~
     - https://phantomjscloud.com/
+    - https://scrapfly.io/
+  - [ ] Consider to use OCR to scrape the web page content (Web crawler to get the screenshot, then OCR to get the text)
+    - ~~[Azure OCR](https://learn.microsoft.com/en-us/azure/cognitive-services/computer-vision/overview-ocr)~~
+    - [Google Vision](https://cloud.google.com/vision)
+    - may use GPT4
 - [x] Support RSS reading with chatGPT
   - RSS is a bunch of links, so it is equivalent to reading a web page to get the content.
 - [x] ~~Support newsletter reading with chatGPT~~
   - Most newsletters are public and can be accessed online, so we can just give the url to the slack bot.
+- Prompt fine-tue
+  - [ ] Support for custom `prompt`
+  - [ ] Auto collect the good `prompt` from the slack channel by emoji reactions
 - [ ] Bot regularly summarizes news in the slack channel
-- [ ] Support for `prompt` templates to fine-tune the summary
+- Cost saving
+  - [ ] by caching the web page llama index
+- [ ] Bot can read historical messages from the same thread, thus providing context to chatGPT
+- Support file reading and analysis
+  - [ ] PDF
+  - [ ] epub
+  - [ ] image
+    - may use GPT4
+  - [ ] docx
+  - [ ] txt
 - [ ] Support voice reading with self-hosting [whisper](https://github.com/aarnphm/whispercpp)❓
+- [ ] Support discord bot ❓
+- [ ] Rewrite the code in Typescript ❓
+- [ ] Upgrade chat model (gpt-3.5-turbo) to GPT4 (gpt-4-0314) 💥
+- [ ] Documentation
