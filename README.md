@@ -26,13 +26,13 @@ For now it is in development, but you can try it out by join this [channel](http
   - RSS is a bunch of links, so it is equivalent to reading a web page to get the content.
 - [x] ~~Support newsletter reading with chatGPT~~
   - Most newsletters are public and can be accessed online, so we can just give the url to the slack bot.
-- Prompt fine-tue
+- Prompt fine-tue 🚩
   - [ ] Support for custom `prompt`
   - [ ] Auto collect the good `prompt` from the slack channel by emoji reactions
-- [ ] Bot regularly summarizes news in the slack channel
-- Cost saving
+- Cost saving 🚩
   - [ ] by caching the web page llama index
-- [ ] Bot can read historical messages from the same thread, thus providing context to chatGPT
+- [ ] Bot can read historical messages from the same thread, thus providing context to chatGPT 🚩
+- [ ] Bot regularly summarizes news in the slack channel 🚩
 - Support file reading and analysis
   - [ ] PDF
   - [ ] epub
@@ -45,3 +45,5 @@ For now it is in development, but you can try it out by join this [channel](http
 - [ ] Rewrite the code in Typescript ❓
 - [ ] Upgrade chat model (gpt-3.5-turbo) to GPT4 (gpt-4-0314) 💥
 - [ ] Documentation
+- Publish bot to make it can be used in other workspaces
+  - [ ] Slack marketplace
