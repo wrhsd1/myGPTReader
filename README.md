@@ -8,7 +8,7 @@ For now it is in development, but you can try it out by join this [channel](http
 
 ## Features
 
-- [x] Integrate with slack bot
+- [x] Integrated with slack bot
   - [x] Bot replies messages in the same thread
 - [x] Support web page reading with chatGPT
   - [x] Consider to use cloudflare worker to scrape the html content
@@ -26,21 +26,36 @@ For now it is in development, but you can try it out by join this [channel](http
   - RSS is a bunch of links, so it is equivalent to reading a web page to get the content.
 - [x] ~~Support newsletter reading with chatGPT~~
   - Most newsletters are public and can be accessed online, so we can just give the url to the slack bot.
-- Prompt fine-tue 🚩
-  - [ ] Support for custom `prompt`
-  - [ ] Auto collect the good `prompt` from the slack channel by emoji reactions
-- Cost saving 🚩
-  - [ ] by caching the web page llama index
-- [ ] Bot can read historical messages from the same thread, thus providing context to chatGPT 🚩
-- [ ] Bot regularly summarizes news in the slack channel 🚩
-- Support file reading and analysis
+- Prompt fine-tue
+  - [x] Support for custom `prompt`
+  - [x] Show `prompt` templates by slack app slash commands
+  - [ ] Auto collect the good `prompt` to `#gpt-prompt` channel by message shortcut
+- Cost saving
+  - [x] by caching the web page llama index
+    - ~~Consider to use [sqlite-vss](https://github.com/asg017/sqlite-vss) to store and search the text embeddings~~
+    - Use [chromadb](https://github.com/chroma-core/chroma) to store and search the text embeddings
+  - [x] Consider to use [sentence-transformers](https://github.com/UKPLab/sentence-transformers) or [txtai](https://github.com/neuml/txtai) to generate [embeddings](https://github.com/asg017/sqlite-vss/blob/main/examples/headlines/build/add_embeddings.py) (vectors)
+  - [ ] Consider to fine-tue the chunk size of index node and prompt to save the cost
+    - If the chunk size is too big, it will cause the index node to be too large and the cost will be high.
+- [x] Bot can read historical messages from the same thread, thus providing context to chatGPT
+- Index fine-tune
+  - [x] Use the [GPTListIndex](https://github.com/jerryjliu/llama_index/issues/753#issuecomment-1472387421) to summarize multiple URLs
+  - [ ] Use the `GPTTreeIndex` with `summarize` mode to summarize a single web page
+- [ ] Bot regularly summarizes news in the slack channel (`#daily-news`) 🚩
+  - Refer to [this](https://github.com/SkywalkerDarren/chatWeb/blob/c2ad05a97aecbe1bc0c846476ea003640f2a0f2e/main.py#L144-L175) approach
+- Support file reading and analysis 💥
+  - Considering the expensive billing, it needs to use the slack userID whitelist to restrict the access this feature
+  - Need to cache the file Documents to save extract cost
+  - [ ] EPUB
+  - [ ] DOCX
+  - [ ] TEXT
   - [ ] PDF
-  - [ ] epub
-  - [ ] image
+    - Use [Google Vision](https://cloud.google.com/vision/docs/pdf) to handle the PDF reading
+  - [ ] Image
     - may use GPT4
-  - [ ] docx
-  - [ ] txt
-- [ ] Support voice reading with self-hosting [whisper](https://github.com/aarnphm/whispercpp)❓
+- [ ] Support voice reading with self-hosting [whisper](https://github.com/aarnphm/whispercpp)
+  - (whisper -> chatGPT -> azure text2speech) to play language speaking practices 💥
+- [ ] Integrated with Azure OpenAI Service
 - [ ] Support discord bot ❓
 - [ ] Rewrite the code in Typescript ❓
 - [ ] Upgrade chat model (gpt-3.5-turbo) to GPT4 (gpt-4-0314) 💥
