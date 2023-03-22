@@ -2,7 +2,7 @@
 
 myGPTReader is a slack bot that reads web pages and summarizes them with chatGPT. You can use it to read news and summarize them in your slack channel.
 
-For now it is in development, but you can try it out by join this [channel](https://join.slack.com/t/bmpidev/shared_invite/zt-1r38f90n5-bOp~RZqoMYiYMOtmKZsbcw).
+For now it is in development, but you can try it out by join this [channel](https://join.slack.com/t/bmpidev/shared_invite/zt-1regrk2ie-NiHipq2gflLrycWcmVG7XQ).
 
 > The exciting part is that the development of this project is also paired with chatGPT. I document the development process in this [CDDR](docs/chatGPT/CDDR.md) file.
 
@@ -33,29 +33,55 @@ For now it is in development, but you can try it out by join this [channel](http
 - Cost saving
   - [x] by caching the web page llama index
     - ~~Consider to use [sqlite-vss](https://github.com/asg017/sqlite-vss) to store and search the text embeddings~~
-    - Use [chromadb](https://github.com/chroma-core/chroma) to store and search the text embeddings
+    - ~~Use [chromadb](https://github.com/chroma-core/chroma) to store and search the text embeddings~~
+    - Use the llama index file to restore the index
   - [x] Consider to use [sentence-transformers](https://github.com/UKPLab/sentence-transformers) or [txtai](https://github.com/neuml/txtai) to generate [embeddings](https://github.com/asg017/sqlite-vss/blob/main/examples/headlines/build/add_embeddings.py) (vectors)
+    - Not good as the embeddings of OpenAI, rollback to use the OpenAI embeddings, and if enable to use the custom embeddings, the minimum of server's memory is 2GB which still increase the cost.
   - [ ] Consider to fine-tue the chunk size of index node and prompt to save the cost
     - If the chunk size is too big, it will cause the index node to be too large and the cost will be high.
 - [x] Bot can read historical messages from the same thread, thus providing context to chatGPT
+  - [x] [Changing the number of output tokens](https://github.com/jerryjliu/llama_index/issues/778#issuecomment-1478303173)
 - Index fine-tune
   - [x] Use the [GPTListIndex](https://github.com/jerryjliu/llama_index/issues/753#issuecomment-1472387421) to summarize multiple URLs
   - [ ] Use the `GPTTreeIndex` with `summarize` mode to summarize a single web page
-- [ ] Bot regularly summarizes news in the slack channel (`#daily-news`) 🚩
-  - Refer to [this](https://github.com/SkywalkerDarren/chatWeb/blob/c2ad05a97aecbe1bc0c846476ea003640f2a0f2e/main.py#L144-L175) approach
+- Bot regularly send hot ~~summarizes(expensive cost)~~ news in the slack channel (`#daily-news`)
+  - ~~Refer to [this](https://github.com/SkywalkerDarren/chatWeb/blob/c2ad05a97aecbe1bc0c846476ea003640f2a0f2e/main.py#L144-L175) approach~~
+    - World News
+      - [x] Zhihu daily hot answers
+      - [x] V2EX daily hot topics
+      - [x] 1point3acres daily hot topics
+      - [x] Reddit world hot news
+    - Dev News
+      - [x] Hacker News daily hot topics
+      - [x] Product Hunt daily hot topics
+    - Invest News
+      - [x] Xueqiu daily hot topics
+      - [x] Jisilu daily hot topics
 - Support file reading and analysis 💥
   - Considering the expensive billing, it needs to use the slack userID whitelist to restrict the access this feature
   - Need to cache the file Documents to save extract cost
-  - [ ] EPUB
-  - [ ] DOCX
-  - [ ] TEXT
-  - [ ] PDF
+  - [x] EPUB
+  - [x] DOCX
+  - [x] MD
+  - [x] TEXT
+  - [x] PDF
     - Use [Google Vision](https://cloud.google.com/vision/docs/pdf) to handle the PDF reading
   - [ ] Image
     - may use GPT4
-- [ ] Support voice reading with self-hosting [whisper](https://github.com/aarnphm/whispercpp)
+- [x] Support voice reading ~~with self-hosting [whisper](https://github.com/aarnphm/whispercpp)~~
   - (whisper -> chatGPT -> azure text2speech) to play language speaking practices 💥
+  - Support language
+    - Chinese
+    - English
+      - 🇺🇸
+      - 🇬🇧
+      - 🇦🇺
+      - 🇮🇳
+    - Japanese
+    - German
 - [ ] Integrated with Azure OpenAI Service
+- [ ] User access limit
+  - Limit the number of requests to bot per user per day to save the cost
 - [ ] Support discord bot ❓
 - [ ] Rewrite the code in Typescript ❓
 - [ ] Upgrade chat model (gpt-3.5-turbo) to GPT4 (gpt-4-0314) 💥
