@@ -1,3 +1,4 @@
+import logging
 import re
 import os
 import requests
@@ -7,9 +8,11 @@ from flask_apscheduler import APScheduler
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 import concurrent.futures
-from app.daily_hot_news import *
+from app.daily_hot_news import build_all_news_block
 from app.gpt import get_answer_from_chatGPT, get_answer_from_llama_file, get_answer_from_llama_web, get_text_from_whisper, get_voice_file_from_text, index_cache_file_dir
+from app.rate_limiter import RateLimiter
 from app.slash_command import register_slack_slash_commands
+from app.ttl_set import TtlSet
 from app.util import md5
 
 class Config:
@@ -37,20 +40,16 @@ def send_daily_news(client, news):
             channel=schedule_channel,
             text="",
             blocks=news_item,
-            reply_broadcast=True
+            reply_broadcast=True,
+            unfurl_links=False,
+            unfurl_media=False
         )
 
 @scheduler.task('cron', id='daily_news_task', hour=1, minute=30)
 def schedule_news():
-   zhihu_news = build_zhihu_hot_news_blocks()
-   v2ex_news = build_v2ex_hot_news_blocks()
-   onepoint3acres_news = build_1point3acres_hot_news_blocks()
-   reddit_news = build_reddit_news_hot_news_blocks()
-   hackernews_news = build_hackernews_news_hot_news_blocks()
-   producthunt_news = build_producthunt_news_hot_news_blocks()
-   xueqiu_news = build_xueqiu_news_hot_news_blocks()
-   jisilu_news = build_jisilu_news_hot_news_blocks()
-   send_daily_news(slack_app.client, [zhihu_news, v2ex_news, onepoint3acres_news, reddit_news, hackernews_news, producthunt_news, xueqiu_news, jisilu_news])
+    logging.info("=====> Start to send daily news!")
+    all_news_blocks = build_all_news_block()
+    send_daily_news(slack_app.client, all_news_blocks)
 
 @app.route("/slack/events", methods=["POST"])
 def slack_events():
@@ -104,10 +103,19 @@ def extract_urls_from_event(event):
 
 whitelist_file = "app/data//vip_whitelist.txt"
 
-filetype_extension_allowed = ['epub', 'pdf', 'text', 'docx', 'markdown', 'm4a', 'webm']
-filetype_voice_extension_allowed = ['m4a', 'webm']
+filetype_extension_allowed = ['epub', 'pdf', 'text', 'docx', 'markdown', 'm4a', 'webm', 'mp3', 'wav']
+filetype_voice_extension_allowed = ['m4a', 'webm', 'mp3', 'wav']
+max_file_size = 3 * 1024 * 1024
+temp_whitelist_users = TtlSet()
+temp_whitelist_channle_id = 'C04VARAS1S7'
+
+limiter_message_per_user = 10
+limiter_time_period = 2 * 3600
+limiter = RateLimiter(limit=limiter_message_per_user, period=limiter_time_period)
 
 def is_authorized(user_id: str) -> bool:
+    if user_id in temp_whitelist_users:
+        return True
     with open(whitelist_file, "r") as f:
         return user_id in f.read().splitlines()
     
@@ -130,6 +138,16 @@ def handle_mentions(event, say, logger):
     file_md5_name = None
     voicemessage = None
 
+    if not limiter.allow_request(user):
+        if not is_authorized(user):
+            say(f'<@{user}>, you have reached the limit of {limiter_message_per_user} messages {limiter_time_period / 3600} hour, please try again later.', thread_ts=thread_ts)
+            return
+
+    # temp whitelist handle
+    if channel == temp_whitelist_channle_id:
+        # add 1 hour play time, refresh temp whitelist when user mention bot in temp whitelist channel
+        temp_whitelist_users.add(user, 60 * 60)
+
     if event.get('files'):
         if not is_authorized(event['user']):
             say(f'<@{user}>, this feature is only allowed by whitelist user, please contact the admin to open it.', thread_ts=thread_ts)
@@ -140,6 +158,9 @@ def handle_mentions(event, say, logger):
         filetype = file["filetype"]
         if filetype not in filetype_extension_allowed:
             say(f'<@{user}>, this filetype is not supported, please upload a file with extension [{", ".join(filetype_extension_allowed)}]', thread_ts=thread_ts)
+            return
+        if file["size"] > max_file_size:
+            say(f'<@{user}>, this file size is beyond max file size limit ({max_file_size / 1024 /1024}MB)', thread_ts=thread_ts)
             return
         url_private = file["url_private"]
         temp_file_path = index_cache_file_dir + user
@@ -191,9 +212,9 @@ def handle_mentions(event, say, logger):
         if voicemessage is None:
             say(f'<@{user}>, {gpt_response}', thread_ts=thread_ts)
         else:
-            voice_file_path = get_voice_file_from_text(gpt_response)
+            voice_file_path = get_voice_file_from_text(str(gpt_response))
             logger.info(f'=====> Voice file path is {voice_file_path}')
-            slack_app.client.files_upload_v2(file=voice_file_path, channel=channel, thread_ts=thread_ts)
+            slack_app.client.files_upload_v2(file=voice_file_path, channel=channel, thread_ts=parent_thread_ts)
     except concurrent.futures.TimeoutError:
         future.cancel()
         err_msg = 'Task timedout(5m) and was canceled.'

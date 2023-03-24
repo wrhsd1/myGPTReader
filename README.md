@@ -1,12 +1,21 @@
 # myGPTReader
 
-myGPTReader is a slack bot that reads web pages and summarizes them with chatGPT. You can use it to read news and summarize them in your slack channel.
-
-For now it is in development, but you can try it out by join this [channel](https://join.slack.com/t/bmpidev/shared_invite/zt-1regrk2ie-NiHipq2gflLrycWcmVG7XQ).
+myGPTReader is a slack bot that can read any webpage, ebook or document and summarize it with chatGPT. It can also talk to you via voice using the content in the channel.
 
 > The exciting part is that the development of this project is also paired with chatGPT. I document the development process in this [CDDR](docs/chatGPT/CDDR.md) file.
 
-## Features
+## Main Features
+
+- Stay updated with the latest news summaries daily with chatGPT.
+- Use chatGPT to read and provide a summary of any webpage, ebook, or document.
+- Enjoy customizable prompt templates that use context from previous conversations with chatGPT.
+- Practice speaking languages by conversing with chatGPT using your voice.
+
+Please join this [slack channel](https://slack-redirect.i365.tech/) to experience all these features for free.
+
+![](https://img.bmpi.dev/my-gpt-reader-showcase.gif)
+
+## TODO List
 
 - [x] Integrated with slack bot
   - [x] Bot replies messages in the same thread
@@ -45,6 +54,7 @@ For now it is in development, but you can try it out by join this [channel](http
   - [x] Use the [GPTListIndex](https://github.com/jerryjliu/llama_index/issues/753#issuecomment-1472387421) to summarize multiple URLs
   - [ ] Use the `GPTTreeIndex` with `summarize` mode to summarize a single web page
 - Bot regularly send hot ~~summarizes(expensive cost)~~ news in the slack channel (`#daily-news`)
+  - [x] Use chatGPT to summarize the hot news
   - ~~Refer to [this](https://github.com/SkywalkerDarren/chatWeb/blob/c2ad05a97aecbe1bc0c846476ea003640f2a0f2e/main.py#L144-L175) approach~~
     - World News
       - [x] Zhihu daily hot answers
@@ -80,7 +90,7 @@ For now it is in development, but you can try it out by join this [channel](http
     - Japanese
     - German
 - [ ] Integrated with Azure OpenAI Service
-- [ ] User access limit
+- [x] User access limit
   - Limit the number of requests to bot per user per day to save the cost
 - [ ] Support discord bot ❓
 - [ ] Rewrite the code in Typescript ❓
@@ -88,3 +98,7 @@ For now it is in development, but you can try it out by join this [channel](http
 - [ ] Documentation
 - Publish bot to make it can be used in other workspaces
   - [ ] Slack marketplace
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=madawei2699/myGPTReader&type=Date)](https://star-history.com/#madawei2699/myGPTReader&Date)
