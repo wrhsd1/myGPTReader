@@ -5,15 +5,16 @@ import hashlib
 import random
 import uuid
 import openai
-from langdetect import detect
+from pathlib import Path
 from llama_index import GPTSimpleVectorIndex, LLMPredictor, RssReader, SimpleDirectoryReader
-from llama_index.prompts.prompts import QuestionAnswerPrompt
 from llama_index.readers.schema.base import Document
 from langchain.chat_models import ChatOpenAI
 from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer, ResultReason, CancellationReason, SpeechSynthesisOutputFormat
 from azure.cognitiveservices.speech.audio import AudioOutputConfig
 
-from app.fetch_web_post import get_urls, scrape_website, scrape_website_by_phantomjscloud
+from app.fetch_web_post import get_urls, get_youtube_transcript, scrape_website, scrape_website_by_phantomjscloud
+from app.prompt import get_prompt_template
+from app.util import get_language_code, get_youtube_video_id
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 SPEECH_KEY = os.environ.get('SPEECH_KEY')
@@ -23,29 +24,37 @@ openai.api_key = OPENAI_API_KEY
 llm_predictor = LLMPredictor(llm=ChatOpenAI(
     temperature=0.2, model_name="gpt-3.5-turbo"))
 
-index_cache_web_dir = '/tmp/myGPTReader/cache_web/'
-index_cache_voice_dir = '/tmp/myGPTReader/voice/'
-index_cache_file_dir = '/data/myGPTReader/file/'
+index_cache_web_dir = Path('/tmp/myGPTReader/cache_web/')
+index_cache_voice_dir = Path('/tmp/myGPTReader/voice/')
+index_cache_file_dir = Path('/data/myGPTReader/file/')
 
-if not os.path.exists(index_cache_web_dir):
-    os.makedirs(index_cache_web_dir)
+if not index_cache_web_dir.is_dir():
+    index_cache_web_dir.mkdir(parents=True, exist_ok=True)
 
-if not os.path.exists(index_cache_voice_dir):
-    os.makedirs(index_cache_voice_dir)
+if not index_cache_voice_dir.is_dir():
+    index_cache_voice_dir.mkdir(parents=True, exist_ok=True)
 
-if not os.path.exists(index_cache_file_dir):
-    os.makedirs(index_cache_file_dir)
-
+if not index_cache_file_dir.is_dir():
+    index_cache_file_dir.mkdir(parents=True, exist_ok=True)
 
 def get_unique_md5(urls):
     urls_str = ''.join(sorted(urls))
     hashed_str = hashlib.md5(urls_str.encode('utf-8')).hexdigest()
     return hashed_str
 
-
 def format_dialog_messages(messages):
     return "\n".join(messages)
 
+def get_document_from_youtube_id(video_id):
+    if video_id is None:
+        return None
+    transcript = get_youtube_transcript(video_id)
+    if transcript is None:
+        return None
+    return Document(transcript)
+
+def remove_prompt_from_text(text):
+    return text.replace('chatGPT:', '').strip()
 
 def get_documents_from_urls(urls):
     documents = []
@@ -59,8 +68,15 @@ def get_documents_from_urls(urls):
         for url in urls['phantomjscloud_urls']:
             document = Document(scrape_website_by_phantomjscloud(url))
             documents.append(document)
+    if len(urls['youtube_urls']) > 0:
+        for url in urls['youtube_urls']:
+            video_id = get_youtube_video_id(url)
+            document = get_document_from_youtube_id(video_id)
+            if (document is not None):
+                documents.append(document)
+            else:
+                documents.append(Document(f"Can't get transcript from youtube video: {url}"))
     return documents
-
 
 def get_answer_from_chatGPT(messages):
     dialog_messages = format_dialog_messages(messages)
@@ -73,39 +89,27 @@ def get_answer_from_chatGPT(messages):
     logging.info(completion.usage)
     return completion.choices[0].message.content
 
-
-QUESTION_ANSWER_PROMPT_TMPL = (
-    "Context information is below. \n"
-    "---------------------\n"
-    "{context_str}"
-    "\n---------------------\n"
-    "{query_str}\n"
-)
-QUESTION_ANSWER_PROMPT = QuestionAnswerPrompt(QUESTION_ANSWER_PROMPT_TMPL)
-
-
 def get_index_from_web_cache(name):
-    if not os.path.exists(index_cache_web_dir + name):
+    web_cache_file = index_cache_web_dir / name
+    if not web_cache_file.is_file():
         return None
-    index = GPTSimpleVectorIndex.load_from_disk(index_cache_web_dir + name)
+    index = GPTSimpleVectorIndex.load_from_disk(web_cache_file)
     logging.info(
-        f"=====> Get index from web cache: {index_cache_web_dir + name}")
+        f"=====> Get index from web cache: {web_cache_file}")
     return index
-
 
 def get_index_from_file_cache(name):
-    if not os.path.exists(index_cache_file_dir + name):
+    file_cache_file = index_cache_file_dir / name
+    if not file_cache_file.is_file():
         return None
-    index = GPTSimpleVectorIndex.load_from_disk(index_cache_file_dir + name)
+    index = GPTSimpleVectorIndex.load_from_disk(file_cache_file)
     logging.info(
-        f"=====> Get index from file cache: {index_cache_file_dir + name}")
+        f"=====> Get index from file cache: {file_cache_file}")
     return index
-
 
 def get_answer_from_llama_web(messages, urls):
     dialog_messages = format_dialog_messages(messages)
-    logging.info('=====> Use llama web with chatGPT to answer!')
-    logging.info(dialog_messages)
+    lang_code = get_language_code(remove_prompt_from_text(messages[-1]))
     combained_urls = get_urls(urls)
     logging.info(combained_urls)
     index_file_name = get_unique_md5(urls)
@@ -116,21 +120,24 @@ def get_answer_from_llama_web(messages, urls):
         logging.info(documents)
         index = GPTSimpleVectorIndex(documents)
         logging.info(
-            f"=====> Save index to disk path: {index_cache_web_dir + index_file_name}")
-        index.save_to_disk(index_cache_web_dir + index_file_name)
-    return index.query(dialog_messages, llm_predictor=llm_predictor, text_qa_template=QUESTION_ANSWER_PROMPT)
-
+            f"=====> Save index to disk path: {index_cache_web_dir / index_file_name}")
+        index.save_to_disk(index_cache_web_dir / index_file_name)
+    prompt = get_prompt_template(lang_code)
+    logging.info('=====> Use llama web with chatGPT to answer!')
+    logging.info('=====> dialog_messages')
+    logging.info(dialog_messages)
+    logging.info('=====> text_qa_template')
+    logging.info(prompt)
+    return index.query(dialog_messages, llm_predictor=llm_predictor, text_qa_template=prompt)
 
 def get_index_name_from_file(file: str):
-    file_md5_with_extension = file.replace(index_cache_file_dir, '')
+    file_md5_with_extension = str(Path(file).relative_to(index_cache_file_dir).name)
     file_md5 = file_md5_with_extension.split('.')[0]
     return file_md5 + '.json'
 
-
 def get_answer_from_llama_file(messages, file):
     dialog_messages = format_dialog_messages(messages)
-    logging.info('=====> Use llama file with chatGPT to answer!')
-    logging.info(dialog_messages)
+    lang_code = get_language_code(remove_prompt_from_text(messages[-1]))
     index_name = get_index_name_from_file(file)
     index = get_index_from_file_cache(index_name)
     if index is None:
@@ -138,18 +145,20 @@ def get_answer_from_llama_file(messages, file):
         documents = SimpleDirectoryReader(input_files=[file]).load_data()
         index = GPTSimpleVectorIndex(documents)
         logging.info(
-            f"=====> Save index to disk path: {index_cache_file_dir + index_name}")
-        index.save_to_disk(index_cache_file_dir + index_name)
-    return index.query(dialog_messages, llm_predictor=llm_predictor, text_qa_template=QUESTION_ANSWER_PROMPT)
-
+            f"=====> Save index to disk path: {index_cache_file_dir / index_name}")
+        index.save_to_disk(index_cache_file_dir / index_name)
+    prompt = get_prompt_template(lang_code)
+    logging.info('=====> Use llama file with chatGPT to answer!')
+    logging.info('=====> dialog_messages')
+    logging.info(dialog_messages)
+    logging.info('=====> text_qa_template')
+    logging.info(prompt)
+    return index.query(dialog_messages, llm_predictor=llm_predictor, text_qa_template=prompt)
 
 def get_text_from_whisper(voice_file_path):
     with open(voice_file_path, "rb") as f:
         transcript = openai.Audio.transcribe("whisper-1", f)
     return transcript.text
-
-def remove_prompt_from_text(text):
-    return text.replace('AI:', '').strip()
 
 lang_code_voice_map = {
     'zh': ['zh-CN-XiaoxiaoNeural', 'zh-CN-XiaohanNeural', 'zh-CN-YunxiNeural', 'zh-CN-YunyangNeural'],
@@ -163,9 +172,9 @@ def convert_to_ssml(text, voice_name=None):
         logging.info("=====> Convert text to ssml!")
         logging.info(text)
         text = remove_prompt_from_text(text)
-        lang_code = detect(text)
+        lang_code = get_language_code(text)
         if voice_name is None:
-            voice_name = random.choice(lang_code_voice_map[lang_code.split('-')[0]])
+            voice_name = random.choice(lang_code_voice_map[lang_code])
     except Exception as e:
         logging.warning(f"Error: {e}. Using default voice.")
         voice_name = random.choice(lang_code_voice_map['zh'])
