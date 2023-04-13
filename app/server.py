@@ -13,7 +13,6 @@ import concurrent.futures
 from app.daily_hot_news import build_all_news_block
 from app.gpt import get_answer_from_chatGPT, get_answer_from_llama_file, get_answer_from_llama_web, get_text_from_whisper, get_voice_file_from_text, index_cache_file_dir
 from app.rate_limiter import RateLimiter
-from app.slash_command import register_slack_slash_commands
 from app.user import get_user, is_premium_user, update_message_token_usage
 from app.util import md5
 
@@ -236,10 +235,11 @@ def handle_mentions(event, say, logger):
     logger.info(event)
 
     user = event["user"]
+    thread_ts = event["ts"]
 
     if not limiter.allow_request(user):
         if not is_premium_user(user):
-            say(f'<@{user}>, you have reached the limit of {limiter_message_per_user} messages {limiter_time_period / 3600} hour, please try again later or contact the <@U051JKES6Q1>.', thread_ts=thread_ts)
+            say(f'<@{user}>, you have reached the limit of {limiter_message_per_user} messages {limiter_time_period / 3600} hour, please subscribe to our Premium plan to support our service. You can find the payment link by clicking on the bot and selecting the Home tab.', thread_ts=thread_ts)
             return
     
     bot_process(event, say, logger)
@@ -259,9 +259,98 @@ def log_message(logger, event, say):
         if is_premium_user(event["user"]):
             bot_process(event, say, logger)
         else:
-            say(f'This feature is for PREMIUM user only, if you want to talk with the bot directly, please contact the <@U051JKES6Q1>.', thread_ts=event["ts"])
+            say(f'This feature is exclusive to Premium users. To chat with the bot directly, please subscribe to our Premium plan to support our service. You can find the payment link by clicking on the bot and selecting the Home tab.', thread_ts=event["ts"])
     except Exception as e:
         logger.error(f"Error responding to direct message: {e}")
+
+@slack_app.event(event="team_join")
+def send_welcome_message(logger, event):
+    try:
+        logger.info(f"Welcome new user: {event}")
+        user_id = event["user"]["id"]
+        user_info = get_user(user_id)
+        welcome_message_block = [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Hi <@{user_id}>, welcome to myreader.io, a community-driven way to read and chat with AI bots! In this community, you can read articles and documents with the AI bots, and chat with the AI bots to get answers to your questions. You can also share what you read with the community and learn how to communicate with the AI bots using the best `prompt`."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "How to use myreader.io"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "1. Go to the channel #general and mention the bot with the command `@my-gpt-reader-bot` to get started.\n 2. You can post a link to an article or document with your question, and the bot will give your answer based the article or document.\n 3. You can also talk to the bot with any question, and the bot will give your answer based on the context of the conversation.\n 4. You can talk to the bot via voice message, and the bot also will respond with a voice message. We think it is a good way to practice your second language."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Free plan limitation* \n 1. Free users can only talk to the bot in the public channel. If you want to a private conversation with the bot, please subscribe to our Premium plan to support our service.\n 2. There is a rate limit of {limiter_message_per_user} messages per {limiter_time_period / 3600} hour. If you want to send more messages, please subscribe to our Premium plan to support our service."
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "How to subscribe to our Premium plan"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Click the `Subscribe Now` to subscribe to our Premium plan."
+                },
+                "accessory": {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Subscribe Now"
+                    },
+                    "url": f"{user_info['payment_link']}"
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "Support our service"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "You can support our service by giving us a upvote on Product Hunt: https://www.producthunt.com/posts/mygptreader"
+                }
+            }
+        ]
+        r = slack_app.client.chat_postMessage(text='Welcome to myreader.io!', blocks=welcome_message_block, channel=user_id)
+        logger.info(r)
+    except Exception as e:
+        logger.error(f"Error sending welcome message: {e}")
 
 @slack_app.event("app_home_opened")
 def update_home_tab(client, event, logger):
@@ -276,6 +365,7 @@ def update_home_tab(client, event, logger):
             llm_token_today_usage = user_info['llm_token_today_usage']
             embedding_token_today_usage = user_info['embedding_token_today_usage']
             message_today_count = user_info['message_today_count']
+            payment_link = user_info['payment_link']
         else:
             user_type = None
             premium_end_date = None
@@ -285,6 +375,7 @@ def update_home_tab(client, event, logger):
             llm_token_today_usage = None
             embedding_token_today_usage = None
             message_today_count = None
+            payment_link = None
         user_block_info = [
             {
                 "type": "section",
@@ -311,6 +402,39 @@ def update_home_tab(client, event, logger):
                             "text": f"*Premium End Date:* {date_string}(UTC)"
                         }
                     })
+        if payment_link is not None:
+            if user_type == 'premium':
+                user_block_info.append({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Premium Membership*"
+                    },
+                    "accessory": {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Manage Subscription"
+                        },
+                        "url": f"{payment_link}"
+                    }
+                })
+            else:
+                user_block_info.append({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Premium Membership*"
+                    },
+                    "accessory": {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Subscribe Now"
+                        },
+                        "url": f"{payment_link}"
+                    }
+                })
         blocks = [
             {
                 "type": "header",
@@ -380,7 +504,6 @@ def update_home_tab(client, event, logger):
     except Exception as e:
         logger.error(f"Error publishing home tab: {e}")
 
-register_slack_slash_commands(slack_app)
 scheduler.start()
 
 if __name__ == '__main__':
